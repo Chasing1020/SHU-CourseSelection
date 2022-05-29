@@ -1,0 +1,17 @@
+termId: 1 # enumerate {1: autumn, 2: winter, 3: spring, 5: summer}
+
+username: 19123456 # your username
+
+password: Abcde12345 # your password
+
+courses:
+  - courseId: 08300001 # the course id you want to select
+    teacherNo: 1001 # the teacher_no you want to select
+
+  - courseId: 08300002
+    teacherNo: 1002
+
+  - courseId: 08300003
+    teacherNo: 1003
+
+  # you can add as many courses as you like below...
