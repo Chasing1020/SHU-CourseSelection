@@ -13,7 +13,7 @@ go mod tidy
 
 # *** Then modify the configuration file: `config.yaml` ***
 
-go run *.go
+go run .
 ```
 
 And if you want to use a cronjob, you should use `crontab -e` command and add
@@ -34,4 +34,5 @@ I'm glad if you have any feedback or give pull requests to this project.
 This project is only available for free academic discussions.
 
 ## 5. License
+
 Licensed under the [Apache License](https://www.apache.org/licenses/LICENSE-2.0), Version 2.0 (the "License");
