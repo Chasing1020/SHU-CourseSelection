@@ -12,14 +12,15 @@ import (
 	"io/ioutil"
 )
 
-func EncryptPassword(password string) string {
-	const pubKey = `-----BEGIN PUBLIC KEY-----
+const PublicKey = `-----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDl/aCgRl9f/4ON9MewoVnV58OL
 OU2ALBi2FKc5yIsfSpivKxe7A6FitJjHva3WpM7gvVOinMehp6if2UNIkbaN+plW
 f5IwqEVxsNZpeixc4GsbY9dXEk3WtRjwGSyDLySzEESH/kpJVoxO7ijRYqU+2oSR
 wTBNePOk1H+LRQokgQIDAQAB
 -----END PUBLIC KEY-----`
-	encryptedPassword, err := encryptByPublicKey(password, pubKey)
+
+func EncryptPassword(password string) string {
+	encryptedPassword, err := encryptByPublicKey(password, PublicKey)
 	if err != nil {
 		panic(err)
 	}
