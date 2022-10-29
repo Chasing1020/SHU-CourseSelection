@@ -71,6 +71,10 @@ func init() {
 	} else {
 		Conf.TermId = strconv.Itoa(time.Now().Year()) + Conf.TermId
 	}
+	for _, course := range Conf.Courses {
+		CourseFieldsMap[course] = course.ToLogFields()
+	}
+
 	log.WithField("termId", Conf.TermId).Info("Read file `config.yaml` successfully")
 	log.WithFields(log.Fields{
 		"courses": Conf.Courses,
