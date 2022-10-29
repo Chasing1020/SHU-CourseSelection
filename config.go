@@ -1,12 +1,12 @@
 package main
 
 import (
-	"log"
+	"fmt"
+	log "github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 	"os"
 	"strconv"
 	"time"
-
-	"gopkg.in/yaml.v2"
 )
 
 var Conf Configuration
@@ -23,15 +23,28 @@ type Course struct {
 	TeacherNo string `yaml:"teacherNo"`
 }
 
+func (c Course) String() string {
+	return fmt.Sprintf("<%s, %s>", c.CourseId, c.TeacherNo)
+}
+
 func init() {
+	log.SetFormatter(&log.TextFormatter{
+		ForceColors:     true,
+		FullTimestamp:   true,
+		TimestampFormat: "2006-01-02 15:04:05",
+		PadLevelText:    true,
+	})
+	log.SetOutput(os.Stdout)
+	log.SetLevel(log.DebugLevel)
+
 	data, err := os.ReadFile("./config.yaml")
 	if err != nil {
-		panic(err)
+		log.Panicf("Func `os.ReadFile` failed, details: %v", err)
 	}
 
 	err = yaml.Unmarshal(data, &Conf)
 	if err != nil {
-		panic(err)
+		log.Panicf("Func `yaml.Unmarshal` failed, details: %v", err)
 	}
 
 	if Conf.TermId == "3" || Conf.TermId == "5" {
@@ -39,5 +52,8 @@ func init() {
 	} else {
 		Conf.TermId = strconv.Itoa(time.Now().Year()) + Conf.TermId
 	}
-	log.Printf("Read confing.yaml successful: %+v", Conf)
+	log.WithField("termId", Conf.TermId).Info("Read file `config.yaml` successfully")
+	log.WithFields(log.Fields{
+		"courses": Conf.Courses,
+	}).Infof("There %d are courses to be selected", len(Conf.Courses))
 }

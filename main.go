@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/gocolly/colly"
 	"github.com/gocolly/colly/extensions"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"runtime"
 	"strings"
 	"sync"
@@ -29,8 +29,8 @@ func main() {
 	Login(c)
 
 	var wg sync.WaitGroup
-	wg.Add(runtime.NumCPU() << 1)
-	for i := 0; i < runtime.NumCPU()<<1; i++ {
+	wg.Add(runtime.NumCPU())
+	for i := 0; i < runtime.NumCPU(); i++ {
 		cc := c.Clone() // will share the cookie jar
 
 		go func(cc *colly.Collector, id int) {
@@ -50,7 +50,7 @@ func main() {
 	}
 	wg.Wait()
 
-	log.Printf("*** All courses have been selected! running time of %v ***", time.Now().Sub(start))
+	log.Infof("All courses have been selected! using %v", time.Now().Sub(start))
 }
 
 // Login try to log in to the xk.autoisp.shu.edu.cn.
@@ -60,24 +60,24 @@ func Login(c *colly.Collector) {
 		"password": EncryptPassword(Conf.Password),
 	})
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 
 	err = c.Post(TermSelectUrl, map[string]string{"termId": Conf.TermId})
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
+
+	log.WithFields(log.Fields{
+		"username": Conf.Username,
+		"password": Conf.Password,
+	}).Info("Login successfully!")
 }
 
 // OnQueryCallbacks registers a function.
 // It will save the course on every query if the course is not full.
 func OnQueryCallbacks(c *colly.Collector, id int) {
 	c.OnHTML(QuerySelector, func(e *colly.HTMLElement) {
-		defer func() {
-			if info := recover(); info != nil {
-				log.Printf("Goroutine %2d recovered: %v", id, info)
-			}
-		}()
 		rw.RLock()
 		if len(selected) == len(Conf.Courses) {
 			rw.RUnlock()
@@ -98,9 +98,16 @@ func OnQueryCallbacks(c *colly.Collector, id int) {
 				"tnos": course.TeacherNo,
 			})
 			if err != nil {
-				panic(err)
+				log.WithFields(log.Fields{
+					"id":  id,
+					"err": err,
+				}).Warn("Post CourseSelectionSaveUrl error")
+				return
 			}
-			log.Printf("=== %v selection successful!!! ===", course)
+			log.WithFields(log.Fields{
+				"courseId":  course.CourseId,
+				"teacherNo": course.TeacherNo,
+			}).Info("Select successfully!")
 
 			rw.Lock()
 			selected[course.CourseId] = true
@@ -112,11 +119,6 @@ func OnQueryCallbacks(c *colly.Collector, id int) {
 // QueryCourse will try to query every course status.
 // If any course is able to save, it will be hooked by QueryCallbacks.
 func QueryCourse(c *colly.Collector, id int) {
-	defer func() {
-		if info := recover(); info != nil {
-			log.Printf("Goroutine %2d recovered: %v", id, info)
-		}
-	}()
 	for _, course := range Conf.Courses {
 		err := c.Post(QueryCourseCheckUrl, map[string]string{
 			"CID":            course.CourseId,
@@ -127,9 +129,12 @@ func QueryCourse(c *colly.Collector, id int) {
 			"PageSize":       "10",
 		})
 		if err != nil {
-			panic(err)
+			log.WithFields(log.Fields{
+				"id":  id,
+				"err": err,
+			}).Warn("Post QueryCourseCheckUrl error")
 		}
 		atomic.AddInt64(&count, 1)
-		log.Printf("Goroutine %2d: The %dth attempt to query the course %v", id, atomic.LoadInt64(&count), course)
+		log.Debugf("Goroutine %2d: The %dth attempt to query the course %v", id, atomic.LoadInt64(&count), course)
 	}
 }
