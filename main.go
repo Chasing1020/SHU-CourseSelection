@@ -30,7 +30,7 @@ func main() {
 
 	var wg sync.WaitGroup
 	for _, course := range Conf.Courses {
-		for i := 0; i < runtime.NumCPU(); i++ {
+		for i := 0; i < runtime.NumCPU()<<1; i++ {
 			cc := c.Clone() // will share the cookie jar
 
 			wg.Add(1)
@@ -40,6 +40,7 @@ func main() {
 					rw.RLock()
 					if selected[course] {
 						rw.RUnlock()
+						wg.Done()
 						return
 					}
 					rw.RUnlock()
@@ -50,7 +51,9 @@ func main() {
 	}
 	wg.Wait()
 
-	log.Infof("All courses have been selected! using %v", time.Now().Sub(start))
+	log.WithField(
+		"time", time.Now().Sub(start),
+	).Infof("All courses have been selected!")
 }
 
 // Login try to log in to the xk.autoisp.shu.edu.cn.
@@ -78,7 +81,6 @@ func Login(c *colly.Collector) {
 // It will save the course on every query if the course is not full.
 func OnQueryCallbacks(c *colly.Collector, id int, course Course) {
 	c.OnHTML(QuerySelector, func(e *colly.HTMLElement) {
-
 		rw.RLock()
 		if !strings.Contains(e.DOM.Text(), course.CourseId) || selected[course] {
 			rw.RUnlock()
@@ -97,10 +99,11 @@ func OnQueryCallbacks(c *colly.Collector, id int, course Course) {
 			}).Warn("Post CourseSelectionSaveUrl error")
 			return
 		}
-		log.WithFields(log.Fields{
-			"courseId":  course.CourseId,
-			"teacherNo": course.TeacherNo,
-		}).Info("Select successfully!")
+
+		log.WithFields(
+			course.ToLogFields(),
+		).Infof("Goroutine %02d: Select successfully!", id)
+
 		rw.Lock()
 		selected[course] = true
 		rw.Unlock()
@@ -113,6 +116,8 @@ func QueryCourse(c *colly.Collector, id int, course Course) {
 	err := c.Post(QueryCourseCheckUrl, map[string]string{
 		"CID":            course.CourseId,
 		"TeachNo":        course.TeacherNo,
+		"CourseName":     course.CourseName,
+		"TeachName":      course.TeacherName,
 		"FunctionString": "LoadData",
 		"IsNotFull":      "true",
 		"PageIndex":      "1",
@@ -125,5 +130,8 @@ func QueryCourse(c *colly.Collector, id int, course Course) {
 		}).Warn("Post QueryCourseCheckUrl error")
 	}
 	atomic.AddInt64(&count, 1)
-	log.Debugf("Goroutine %02d: The %dth attempt to query the course %v", id, atomic.LoadInt64(&count), course)
+
+	log.WithFields(
+		course.ToLogFields(),
+	).Debugf("Goroutine %02d: The %dth time to query the course", id, atomic.LoadInt64(&count))
 }

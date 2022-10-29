@@ -5,11 +5,13 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	"os"
+	"reflect"
 	"strconv"
 	"time"
 )
 
 var Conf Configuration
+var CourseFieldsMap = make(map[Course]log.Fields)
 
 type Configuration struct {
 	TermId   string   `yaml:"termId"`
@@ -19,8 +21,24 @@ type Configuration struct {
 }
 
 type Course struct {
-	CourseId  string `yaml:"courseId"`
-	TeacherNo string `yaml:"teacherNo"`
+	CourseId    string `yaml:"courseId"`
+	TeacherNo   string `yaml:"teacherNo"`
+	CourseName  string `yaml:"courseName,omitempty"`
+	TeacherName string `yaml:"teacherName,omitempty"`
+}
+
+func (c Course) ToLogFields() log.Fields {
+	fields := log.Fields{}
+	courseValue := reflect.ValueOf(c)
+	courseType := reflect.TypeOf(c)
+	for i := 0; i < courseValue.NumField(); i++ {
+		k := courseType.Field(i).Name
+		v := courseValue.Field(i).String()
+		if v != "" {
+			fields[k] = v
+		}
+	}
+	return fields
 }
 
 func (c Course) String() string {
