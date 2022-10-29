@@ -51,9 +51,9 @@ func main() {
 	}
 	wg.Wait()
 
-	log.WithField(
-		"time", time.Now().Sub(start),
-	).Infof("All courses have been selected!")
+	log.WithFields(log.Fields{
+		"used_time": time.Now().Sub(start),
+	}).Infof("All courses have been selected!")
 }
 
 // Login try to log in to the xk.autoisp.shu.edu.cn.
@@ -101,7 +101,7 @@ func OnQueryCallbacks(c *colly.Collector, id int, course Course) {
 		}
 
 		log.WithFields(
-			course.ToLogFields(),
+			CourseFieldsMap[course],
 		).Infof("Goroutine %02d: Select successfully!", id)
 
 		rw.Lock()
@@ -132,6 +132,6 @@ func QueryCourse(c *colly.Collector, id int, course Course) {
 	atomic.AddInt64(&count, 1)
 
 	log.WithFields(
-		course.ToLogFields(),
+		CourseFieldsMap[course],
 	).Debugf("Goroutine %02d: The %dth time to query the course", id, atomic.LoadInt64(&count))
 }
