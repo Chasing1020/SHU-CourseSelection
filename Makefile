@@ -12,11 +12,11 @@ fmt:
 
 .PHONY: build
 build:
-	$(GO) build
+	$(GO) build -o $(BINARY_NAME)
 
 .PHONY: fmt
 run:
-	$(GO) run $(GO_FILES) -o $(BINARY_NAME)
+	$(GO) run $(GO_FILES)
 
 .PHONY: clean
 clean:
