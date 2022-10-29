@@ -18,8 +18,8 @@ const QueryCourseCheckUrl = "http://xk.autoisp.shu.edu.cn/CourseSelectionStudent
 
 const QuerySelector = "#tblcoursecheck > tbody > tr:nth-child(2) > td:nth-child(2)"
 
+var selected = make(map[Course]bool)
 var count int64
-var selected = make(map[string]bool)
 var rw sync.RWMutex
 
 func main() {
@@ -29,24 +29,24 @@ func main() {
 	Login(c)
 
 	var wg sync.WaitGroup
-	wg.Add(runtime.NumCPU())
-	for i := 0; i < runtime.NumCPU(); i++ {
-		cc := c.Clone() // will share the cookie jar
+	for _, course := range Conf.Courses {
+		for i := 0; i < runtime.NumCPU(); i++ {
+			cc := c.Clone() // will share the cookie jar
 
-		go func(cc *colly.Collector, id int) {
-			OnQueryCallbacks(cc, id)
-			for {
-				rw.RLock()
-				if len(selected) == len(Conf.Courses) {
+			wg.Add(1)
+			go func(cc *colly.Collector, id int, course Course) {
+				OnQueryCallbacks(cc, id, course)
+				for {
+					rw.RLock()
+					if selected[course] {
+						rw.RUnlock()
+						return
+					}
 					rw.RUnlock()
-					wg.Done()
-					return
+					QueryCourse(cc, id, course)
 				}
-				rw.RUnlock()
-
-				QueryCourse(cc, id)
-			}
-		}(cc, i+1)
+			}(cc, i+1, course)
+		}
 	}
 	wg.Wait()
 
@@ -76,65 +76,54 @@ func Login(c *colly.Collector) {
 
 // OnQueryCallbacks registers a function.
 // It will save the course on every query if the course is not full.
-func OnQueryCallbacks(c *colly.Collector, id int) {
+func OnQueryCallbacks(c *colly.Collector, id int, course Course) {
 	c.OnHTML(QuerySelector, func(e *colly.HTMLElement) {
+
 		rw.RLock()
-		if len(selected) == len(Conf.Courses) {
+		if !strings.Contains(e.DOM.Text(), course.CourseId) || selected[course] {
 			rw.RUnlock()
 			return
 		}
 		rw.RUnlock()
 
-		for _, course := range Conf.Courses {
-			rw.RLock()
-			if !strings.Contains(e.DOM.Text(), course.CourseId) || selected[course.CourseId] {
-				rw.RUnlock()
-				continue
-			}
-			rw.RUnlock()
-
-			err := c.Post(CourseSelectionSaveUrl, map[string]string{
-				"cids": course.CourseId,
-				"tnos": course.TeacherNo,
-			})
-			if err != nil {
-				log.WithFields(log.Fields{
-					"id":  id,
-					"err": err,
-				}).Warn("Post CourseSelectionSaveUrl error")
-				return
-			}
-			log.WithFields(log.Fields{
-				"courseId":  course.CourseId,
-				"teacherNo": course.TeacherNo,
-			}).Info("Select successfully!")
-
-			rw.Lock()
-			selected[course.CourseId] = true
-			rw.Unlock()
-		}
-	})
-}
-
-// QueryCourse will try to query every course status.
-// If any course is able to save, it will be hooked by QueryCallbacks.
-func QueryCourse(c *colly.Collector, id int) {
-	for _, course := range Conf.Courses {
-		err := c.Post(QueryCourseCheckUrl, map[string]string{
-			"CID":            course.CourseId,
-			"TeachNo":        course.TeacherNo,
-			"FunctionString": "LoadData",
-			"IsNotFull":      "true",
-			"PageIndex":      "1",
-			"PageSize":       "10",
+		err := c.Post(CourseSelectionSaveUrl, map[string]string{
+			"cids": course.CourseId,
+			"tnos": course.TeacherNo,
 		})
 		if err != nil {
 			log.WithFields(log.Fields{
 				"id":  id,
 				"err": err,
-			}).Warn("Post QueryCourseCheckUrl error")
+			}).Warn("Post CourseSelectionSaveUrl error")
+			return
 		}
-		atomic.AddInt64(&count, 1)
-		log.Debugf("Goroutine %2d: The %dth attempt to query the course %v", id, atomic.LoadInt64(&count), course)
+		log.WithFields(log.Fields{
+			"courseId":  course.CourseId,
+			"teacherNo": course.TeacherNo,
+		}).Info("Select successfully!")
+		rw.Lock()
+		selected[course] = true
+		rw.Unlock()
+	})
+}
+
+// QueryCourse will try to query every course status.
+// If any course is able to save, it will be hooked by QueryCallbacks.
+func QueryCourse(c *colly.Collector, id int, course Course) {
+	err := c.Post(QueryCourseCheckUrl, map[string]string{
+		"CID":            course.CourseId,
+		"TeachNo":        course.TeacherNo,
+		"FunctionString": "LoadData",
+		"IsNotFull":      "true",
+		"PageIndex":      "1",
+		"PageSize":       "10",
+	})
+	if err != nil {
+		log.WithFields(log.Fields{
+			"id":  id,
+			"err": err,
+		}).Warn("Post QueryCourseCheckUrl error")
 	}
+	atomic.AddInt64(&count, 1)
+	log.Debugf("Goroutine %02d: The %dth attempt to query the course %v", id, atomic.LoadInt64(&count), course)
 }
