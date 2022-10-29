@@ -8,14 +8,14 @@ export GO111MODULE:=on
 .PHONY: fmt
 fmt:
 	$(GO) mod tidy -go=1.17
-	$(GO) -s -w $(GO_FILES)
+	$(GOFMT) -s -w $(GO_FILES)
 
 .PHONY: build
 build:
 	$(GO) build -o $(BINARY_NAME)
 
-.PHONY: fmt
-run:
+.PHONY:
+run: fmt
 	$(GO) run $(GO_FILES)
 
 .PHONY: clean
