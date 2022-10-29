@@ -5,8 +5,10 @@ username: 19123456 # your username
 password: Abcde12345 # your password
 
 courses:
-  - courseId: 08300001 # the course id you want to select
-    teacherNo: 1001 # the teacher_no you want to select
+  - courseId: 0830001 #(required) the course id you want to select
+    teacherNo: 1001 #(required) the teacher_no you want to select
+    courseName: 摸鱼学导论 #(optional) the course name
+    teacherName: 张三 #(optional) the teacher name
 
   - courseId: 08300002
     teacherNo: 1002
