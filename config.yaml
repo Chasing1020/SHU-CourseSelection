@@ -5,15 +5,15 @@ username: 19123456 # your username
 password: Abcde12345 # your password
 
 courses:
-  - courseId: 0830001 #(required) the course_id you want to select
-    teacherNo: 1001 #(required) the teacher_no you want to select
-    courseName: 摸鱼学导论 #(optional) the course_name
-    teacherName: 张三 #(optional) the teacher_name
+  - courseId: 0830001 # (required) the course_id you want to select
+    teacherNo: 1001 # (required) the teacher_no you want to select
+    courseName: 摸鱼学导论 # (optional) the course_name
+    teacherName: 张三 # (optional) the teacher_name
 
-  - courseId: 08300002
-    teacherNo: 1002
+  - courseId: 08300002 # (required) the course_id you want to select
+    teacherNo: 1002 # (required) the teacher_no you want to select
 
-  - courseId: 08300003
-    teacherNo: 1003
+  - courseId: 08300003 # (required) the course_id you want to select
+    teacherNo: 1003 # (required) the teacher_no you want to select
 
   # you can add as many courses as you like below...
