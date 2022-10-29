@@ -1,9 +1,12 @@
-BINARY_NAME:=CourseSelection
+BINARY_NAME:=course-selection
 GO:=$(shell which go)
 GOFMT:=$(shell which gofmt)
 GO_FILES:=$(shell find . -name "*.go" -type f)
 
 export GO111MODULE:=on
+
+.PHONY: all
+all: fmt build
 
 .PHONY: fmt
 fmt:
