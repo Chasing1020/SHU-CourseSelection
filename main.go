@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"github.com/gocolly/colly"
 	"github.com/gocolly/colly/extensions"
 	log "github.com/sirupsen/logrus"
+	"os"
+	"os/signal"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 )
 
@@ -18,41 +22,51 @@ const QueryCourseCheckUrl = "http://xk.autoisp.shu.edu.cn/CourseSelectionStudent
 
 const QuerySelector = "#tblcoursecheck > tbody > tr:nth-child(2) > td:nth-child(2)"
 
-var selected = make(map[Course]bool)
 var count int64
-var rw sync.RWMutex
 
 func main() {
 	start := time.Now()
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
+	go func() {
+		sig := <-ch
+		log.WithFields(log.Fields{
+			"signal":    sig,
+			"used_time": time.Now().Sub(start),
+			"req_times": atomic.LoadInt64(&count),
+		}).Infof("Program exit")
+		log.Exit(-1)
+	}()
+
 	c := colly.NewCollector()
 	extensions.RandomUserAgent(c)
 	Login(c)
 
 	var wg sync.WaitGroup
 	for _, course := range Conf.Courses {
+		ctx, cancel := context.WithCancel(context.Background())
 		for i := 0; i < runtime.NumCPU()<<1; i++ {
 			cc := c.Clone() // will share the cookie jar
-
 			wg.Add(1)
-			go func(cc *colly.Collector, id int, course Course) {
-				OnQueryCallbacks(cc, id, course)
+			go func(ctx context.Context, cancel context.CancelFunc, cc *colly.Collector, id int, course Course) {
+				OnQueryCallbacks(ctx, cancel, cc, id, course)
 				for {
-					rw.RLock()
-					if selected[course] {
-						rw.RUnlock()
+					select {
+					case <-ctx.Done():
 						wg.Done()
 						return
+					default:
+						QueryCourse(cc, id, course)
 					}
-					rw.RUnlock()
-					QueryCourse(cc, id, course)
 				}
-			}(cc, i+1, course)
+			}(ctx, cancel, cc, i+1, course)
 		}
 	}
 	wg.Wait()
 
 	log.WithFields(log.Fields{
 		"used_time": time.Now().Sub(start),
+		"req_times": atomic.LoadInt64(&count),
 	}).Infof("All courses have been selected!")
 }
 
@@ -79,34 +93,32 @@ func Login(c *colly.Collector) {
 
 // OnQueryCallbacks registers a function.
 // It will save the course on every query if the course is not full.
-func OnQueryCallbacks(c *colly.Collector, id int, course Course) {
+func OnQueryCallbacks(ctx context.Context, cancel context.CancelFunc, c *colly.Collector, id int, course Course) {
 	c.OnHTML(QuerySelector, func(e *colly.HTMLElement) {
-		rw.RLock()
-		if !strings.Contains(e.DOM.Text(), course.CourseId) || selected[course] {
-			rw.RUnlock()
+		if !strings.Contains(e.DOM.Text(), course.CourseId) {
 			return
 		}
-		rw.RUnlock()
-
-		err := c.Post(CourseSelectionSaveUrl, map[string]string{
-			"cids": course.CourseId,
-			"tnos": course.TeacherNo,
-		})
-		if err != nil {
-			log.WithFields(log.Fields{
-				"id":  id,
-				"err": err,
-			}).Warn("Post CourseSelectionSaveUrl error")
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			err := c.Post(CourseSelectionSaveUrl, map[string]string{
+				"cids": course.CourseId,
+				"tnos": course.TeacherNo,
+			})
+			if err != nil {
+				log.WithFields(log.Fields{
+					"id":  id,
+					"err": err,
+				}).Warn("Post CourseSelectionSaveUrl error")
+				return
+			}
+			log.WithFields(
+				CourseFieldsMap[course],
+			).Infof("Goroutine %02d: Select successfully!", id)
+			cancel()
 			return
 		}
-
-		log.WithFields(
-			CourseFieldsMap[course],
-		).Infof("Goroutine %02d: Select successfully!", id)
-
-		rw.Lock()
-		selected[course] = true
-		rw.Unlock()
 	})
 }
 
